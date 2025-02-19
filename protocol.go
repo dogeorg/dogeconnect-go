@@ -9,8 +9,8 @@ const (
 type ConnectEnvelope struct {
 	Version   string `json:"version"` // MUST be EnvelopeVersion
 	Payload   string `json:"payload"` // Base64-encoded JSON payload (e.g. ConnectPayment)
-	PubKey    string `json:"pubkey"`  // Gateway Public Key, BIP-340 Schnorr
-	Signature string `json:"sig"`     // Payload Signature, BIP-340 Schnorr
+	PubKey    string `json:"pubkey"`  // Gateway Public Key, BIP-340 Schnorr X-only (32 bytes)
+	Signature string `json:"sig"`     // Payload Signature, BIP-340 Schnorr (64 bytes)
 }
 
 // ConnectPayment represents a payment request Payload
