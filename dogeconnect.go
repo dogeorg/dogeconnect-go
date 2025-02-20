@@ -46,8 +46,8 @@ func SignPaymentRequest(payment ConnectPayment, privKey []byte) (ConnectEnvelope
 }
 
 // VerifyPaymentRequest decodes and verifies a signed ConnectPayment in a ConnectEnvelope.
-// pubKeyCheck is the `h` (hash) element from a valid DogeConnect URL.
-func VerifyPaymentRequest(env ConnectEnvelope, pubKeyCheck []byte) (ConnectPayment, error) {
+// pubKeyHash is the `h` (hash) element from a valid DogeConnect URL.
+func VerifyPaymentRequest(env ConnectEnvelope, pubKeyHash []byte) (ConnectPayment, error) {
 	if env.Version != EnvelopeVersion {
 		return ConnectPayment{}, fmt.Errorf("invalid envelope: wrong version")
 	}
@@ -65,8 +65,8 @@ func VerifyPaymentRequest(env ConnectEnvelope, pubKeyCheck []byte) (ConnectPayme
 	}
 
 	// SHA256 the public key.
-	pubHash := sha256.Sum256(pub)
-	if !bytes.Equal(pubKeyCheck, pubHash[0:15]) {
+	pubSha := sha256.Sum256(pub)
+	if !bytes.Equal(pubKeyHash, pubSha[0:15]) {
 		return ConnectPayment{}, fmt.Errorf("invalid envelope: wrong public key")
 	}
 
