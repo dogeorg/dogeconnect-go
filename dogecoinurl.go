@@ -44,8 +44,10 @@ func ParseDogecoinURI(dogecoinURI string) (res DogeURI, err error) {
 }
 
 func DogecoinURI(payToAddress string, amount string, connectURL string, pubKey []byte) string {
+	// remove https:// prefix as per spec
+	connectURL = strings.TrimPrefix(connectURL, "https://")
 	pkHash := pubKeyHash(pubKey)
-	escURL := url.QueryEscape(strings.TrimPrefix(connectURL, "https://"))
+	escURL := url.QueryEscape(connectURL)
 	return fmt.Sprintf("dogecoin:%s?amount=%s&dc=%s&h=%s", payToAddress, amount, escURL, pkHash)
 }
 
