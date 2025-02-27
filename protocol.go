@@ -19,7 +19,7 @@ type ConnectPayment struct {
 	ID            string          `json:"id"`             // Gateway unique payment-request ID
 	Issued        string          `json:"issued"`         // RFC 3339 Timestamp (2006-01-02T15:04:05-07:00)
 	Timeout       int             `json:"timeout"`        // Seconds; do not submit payment Tx after this time (Issued+Timeout)
-	Relay         string          `json:"relay"`          // DogeConnect Relay URL, https://example.com/payments
+	Relay         string          `json:"relay"`          // Payment Relay URL, https://example.com/dc
 	VendorIcon    string          `json:"vendor_icon"`    // vendor icon URL, SHOULD be https:// JPG or PNG
 	VendorName    string          `json:"vendor_name"`    // vendor display name
 	VendorAddress string          `json:"vendor_address"` // vendor business address (optional)

@@ -5,6 +5,7 @@ import (
 	"encoding/base64"
 	"fmt"
 	"net/url"
+	"strings"
 )
 
 // The payment QR-code contains Connect URL (c) and Gateway Public Key Hash (h)
@@ -44,7 +45,7 @@ func ParseDogecoinURI(dogecoinURI string) (res DogeURI, err error) {
 
 func DogecoinURI(payToAddress string, amount string, connectURL string, pubKey []byte) string {
 	pkHash := pubKeyHash(pubKey)
-	escURL := url.QueryEscape(connectURL)
+	escURL := url.QueryEscape(strings.TrimPrefix(connectURL, "https://"))
 	return fmt.Sprintf("dogecoin:%s?amount=%s&dc=%s&h=%s", payToAddress, amount, escURL, pkHash)
 }
 
