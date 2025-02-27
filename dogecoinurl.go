@@ -9,7 +9,7 @@ import (
 
 // The payment QR-code contains Connect URL (c) and Gateway Public Key Hash (h)
 // as well as fallback dogecoin address and payment amount:
-// dogecoin:DChs1c2YJZiZqhB13b8au44UCkcNGiiaDB?amount=43.61&c=example.com%2Fdc%2F1234&h=3qaSfQoAQSj1U4DrZECG
+// dogecoin:DChs1c2YJZiZqhB13b8au44UCkcNGiiaDB?amount=43.61&dc=example.com%2Fdc%2F1234&h=3qaSfQoAQSj1U4DrZECG
 
 type DogeURI struct {
 	Address    string
@@ -37,7 +37,7 @@ func ParseDogecoinURI(dogecoinURI string) (res DogeURI, err error) {
 	// all of the following are optional in a dogecoin URI
 	args := url.Query()
 	res.Amount = args.Get("amount")
-	res.ConnectURL = args.Get("c")
+	res.ConnectURL = args.Get("dc")
 	res.PubKeyHash, _ = base64.URLEncoding.DecodeString(args.Get("h"))
 	return
 }
@@ -45,7 +45,7 @@ func ParseDogecoinURI(dogecoinURI string) (res DogeURI, err error) {
 func DogecoinURI(payToAddress string, amount string, connectURL string, pubKey []byte) string {
 	pkHash := pubKeyHash(pubKey)
 	escURL := url.QueryEscape(connectURL)
-	return fmt.Sprintf("dogecoin:%s?amount=%s&c=%s&h=%s", payToAddress, amount, escURL, pkHash)
+	return fmt.Sprintf("dogecoin:%s?amount=%s&dc=%s&h=%s", payToAddress, amount, escURL, pkHash)
 }
 
 // pubKeyHash encodes the first 15 bytes of the SHA256 of the Gateway Public Key

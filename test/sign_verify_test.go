@@ -23,7 +23,7 @@ func TestSignAndVerify(t *testing.T) {
 		ID:            "101",
 		Issued:        "2025-02-19T14:07:20+11:00",
 		Timeout:       30,
-		Gateway:       "https://example.com/dc/1QAB-POvTh2R88nybE8Wwg",
+		Relay:         "https://example.com/dc/1QAB-POvTh2R88nybE8Wwg",
 		VendorIcon:    "https://static.example.com/vnd/1234/icon.png",
 		VendorName:    "Example Co",
 		VendorAddress: "123 Example St",

@@ -19,13 +19,15 @@ type ConnectPayment struct {
 	ID            string          `json:"id"`             // Gateway unique payment-request ID
 	Issued        string          `json:"issued"`         // RFC 3339 Timestamp (2006-01-02T15:04:05-07:00)
 	Timeout       int             `json:"timeout"`        // Seconds; do not submit payment Tx after this time (Issued+Timeout)
-	Gateway       string          `json:"gateway"`        // DogeConnect Gateway URL, https://example.com/payments
+	Relay         string          `json:"relay"`          // DogeConnect Relay URL, https://example.com/payments
 	VendorIcon    string          `json:"vendor_icon"`    // vendor icon URL, SHOULD be https:// JPG or PNG
 	VendorName    string          `json:"vendor_name"`    // vendor display name
 	VendorAddress string          `json:"vendor_address"` // vendor business address (optional)
 	Total         string          `json:"total"`          // Total amount including fees and taxes, DECMIAL string
 	Fees          string          `json:"fees"`           // Fee subtotal, DECMIAL string
 	Taxes         string          `json:"taxes"`          // Taxes subtotal, DECMIAL string
+	FiatTotal     string          `json:"fiat_total"`     // Total amount in fiat currency (optional)
+	FiatCurrency  string          `json:"fiat_currency"`  // ISO 4217 currency code (required with fiat_total)
 	Items         []ConnectItem   `json:"items"`          // List of line items to display
 	Outputs       []ConnectOutput `json:"outputs"`        // List of outputs to pay
 }
