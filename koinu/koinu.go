@@ -17,13 +17,13 @@ const MaxMoney = 10_000_000_000 * OneDoge // max transaction is 10,000,000,000 D
 
 // String implements fmt.Stringer
 func (val Koinu) String() string {
+	if val < 0 {
+		return "-" + (-val).String()
+	}
 	whole := val / OneDoge
 	part := val % OneDoge
 	if part != 0 {
-		// decimal number: trim off trailing zeroes in the decimal-part
-		return strings.TrimRight(fmt.Sprintf("%d.%d", whole, part), "0")
-	} else {
-		// whole integer
-		return fmt.Sprintf("%d", whole)
+		return strings.TrimRight(fmt.Sprintf("%d.%08d", whole, part), "0")
 	}
+	return fmt.Sprintf("%d", whole)
 }

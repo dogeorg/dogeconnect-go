@@ -2,21 +2,33 @@ package test
 
 import (
 	"crypto/sha256"
+	"encoding/base64"
+	"encoding/hex"
+	"encoding/json"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/btcsuite/btcd/btcec/v2"
+	"github.com/btcsuite/btcd/btcec/v2/schnorr"
 	dogeconnectgo "github.com/dogeorg/dogeconnect-go"
 )
 
-func TestSignAndVerify(t *testing.T) {
-	// generate a private key for testing.
+func newTestKey(t *testing.T) (privKey []byte, pubKeyCheck []byte) {
+	t.Helper()
 	priv, err := btcec.NewPrivateKey()
 	if err != nil {
-		panic(err)
+		t.Fatalf("failed to generate key: %v", err)
 	}
-	privKey := priv.Serialize()
-	pubKey := priv.PubKey().SerializeCompressed()[1:] // X-only pubkey
+	privKey = priv.Serialize()
+	pubKey := priv.PubKey().SerializeCompressed()[1:]
+	pubKeyHash := sha256.Sum256(pubKey)
+	pubKeyCheck = pubKeyHash[0:15]
+	return
+}
+
+func TestSignAndVerify(t *testing.T) {
+	privKey, pubKeyCheck := newTestKey(t)
 
 	payment := dogeconnectgo.ConnectPayment{
 		Type:          dogeconnectgo.PaymentRequestType,
@@ -43,14 +55,8 @@ func TestSignAndVerify(t *testing.T) {
 			},
 		},
 		Outputs: []dogeconnectgo.ConnectOutput{
-			{
-				Address: "DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY",
-				Amount:  "414.37965",
-			},
-			{
-				Address: "DTG6vtXMfmjsitw4JkjJKb5SXH1hcNxn3n",
-				Amount:  "6.31035",
-			},
+			{Address: "DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY", Amount: "414.37965"},
+			{Address: "DTG6vtXMfmjsitw4JkjJKb5SXH1hcNxn3n", Amount: "6.31035"},
 		},
 	}
 
@@ -59,9 +65,6 @@ func TestSignAndVerify(t *testing.T) {
 		t.Fatalf("failed to sign: %v", err)
 	}
 
-	pubKeyHash := sha256.Sum256(pubKey)
-	pubKeyCheck := pubKeyHash[0:15]
-
 	pay, err := dogeconnectgo.VerifyPaymentRequest(env, pubKeyCheck)
 	if err != nil {
 		t.Fatalf("failed to verify: %v", err)
@@ -69,5 +72,114 @@ func TestSignAndVerify(t *testing.T) {
 
 	if !reflect.DeepEqual(pay, payment) {
 		t.Fatalf("verified payment is different:\n%v vs\n%v (expected)", pay, payment)
+	}
+}
+
+func TestMinimalPaymentRoundTrip(t *testing.T) {
+	privKey, pubKeyCheck := newTestKey(t)
+
+	payment := dogeconnectgo.ConnectPayment{
+		Type:   dogeconnectgo.PaymentRequestType,
+		ID:     "minimal-1",
+		Issued: "2025-06-01T00:00:00Z",
+		Relay:  "https://example.com/dc/minimal",
+		Total:  "10",
+		Outputs: []dogeconnectgo.ConnectOutput{
+			{Address: "DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY", Amount: "10"},
+		},
+	}
+
+	env, err := dogeconnectgo.SignPaymentRequest(payment, privKey)
+	if err != nil {
+		t.Fatalf("failed to sign minimal payment: %v", err)
+	}
+
+	pay, err := dogeconnectgo.VerifyPaymentRequest(env, pubKeyCheck)
+	if err != nil {
+		t.Fatalf("failed to verify minimal payment: %v", err)
+	}
+
+	if !reflect.DeepEqual(pay, payment) {
+		t.Fatalf("minimal payment round-trip mismatch:\ngot:  %+v\nwant: %+v", pay, payment)
+	}
+}
+
+func TestMalformedPayloadReturnsError(t *testing.T) {
+	priv, err := btcec.NewPrivateKey()
+	if err != nil {
+		t.Fatalf("failed to generate key: %v", err)
+	}
+	pubKey := priv.PubKey().SerializeCompressed()[1:]
+	pubKeyHash := sha256.Sum256(pubKey)
+	pubKeyCheck := pubKeyHash[0:15]
+
+	// Create a validly-signed envelope with invalid JSON as payload.
+	badPayload := []byte("{not valid json!!")
+	hash1 := sha256.Sum256(badPayload)
+	hash := sha256.Sum256(hash1[:])
+
+	sig, err := schnorr.Sign(priv, hash[:])
+	if err != nil {
+		t.Fatalf("failed to sign: %v", err)
+	}
+
+	env := dogeconnectgo.ConnectEnvelope{
+		Version:   dogeconnectgo.EnvelopeVersion,
+		Payload:   base64.StdEncoding.EncodeToString(badPayload),
+		PubKey:    hex.EncodeToString(pubKey),
+		Signature: hex.EncodeToString(sig.Serialize()),
+	}
+
+	_, err = dogeconnectgo.VerifyPaymentRequest(env, pubKeyCheck)
+	if err == nil {
+		t.Fatal("expected error for malformed payload JSON, got nil")
+	}
+	if !strings.Contains(err.Error(), "malformed") {
+		t.Fatalf("error should mention 'malformed', got: %v", err)
+	}
+}
+
+func TestMinimalPaymentJSONShape(t *testing.T) {
+	payment := dogeconnectgo.ConnectPayment{
+		Type:   dogeconnectgo.PaymentRequestType,
+		ID:     "shape-1",
+		Issued: "2025-06-01T00:00:00Z",
+		Relay:  "https://example.com/dc/shape",
+		Total:  "5",
+		Outputs: []dogeconnectgo.ConnectOutput{
+			{Address: "DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY", Amount: "5"},
+		},
+	}
+
+	data, err := json.Marshal(payment)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("failed to unmarshal to map: %v", err)
+	}
+
+	// These optional fields should be absent when zero/empty.
+	absent := []string{
+		"timeout", "fee_per_kb", "max_size",
+		"vendor_icon", "vendor_name", "vendor_address",
+		"fees", "taxes",
+		"fiat_total", "fiat_tax", "fiat_currency",
+		"items",
+	}
+	for _, key := range absent {
+		if _, ok := m[key]; ok {
+			t.Errorf("optional key %q should be absent from JSON, but is present", key)
+		}
+	}
+
+	// These required fields should be present.
+	present := []string{"type", "id", "issued", "relay", "total", "outputs"}
+	for _, key := range present {
+		if _, ok := m[key]; !ok {
+			t.Errorf("required key %q should be present in JSON, but is absent", key)
+		}
 	}
 }
