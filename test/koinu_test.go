@@ -1,6 +1,7 @@
 package test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/dogeorg/dogeconnect-go/koinu"
@@ -11,19 +12,20 @@ func TestKoinuString(t *testing.T) {
 		val  koinu.Koinu
 		want string
 	}{
-		{koinu.Koinu(1000), "0.00001"},                          // leading zeros in fractional part (the reported bug)
-		{koinu.Koinu(1), "0.00000001"},                          // smallest unit
-		{koinu.Koinu(100000000), "1"},                           // whole number
-		{koinu.Koinu(100500000), "1.005"},                       // leading zeros in fractional part
-		{koinu.Koinu(0), "0"},                                   // zero
-		{koinu.Koinu(-1225000000), "-12.25"},                    // negative value
-		{koinu.Koinu(1225000000), "12.25"},                      // positive decimal
-		{koinu.Koinu(10000000), "0.1"},                          // 0.1
-		{koinu.Koinu(99999999), "0.99999999"},                   // just under 1 doge
-		{koinu.Koinu(-1), "-0.00000001"},                        // negative smallest unit
-		{koinu.Koinu(-100000000), "-1"},                         // negative whole
-		{koinu.Koinu(10 * koinu.OneDoge), "10"},                 // round 10
-		{koinu.Koinu(12*koinu.OneDoge + koinu.OneDoge/4), "12.25"}, // original test case
+		{koinu.Koinu(1000), "0.00001"},                             // leading zeros in fractional part
+		{koinu.Koinu(1), "0.00000001"},                             // smallest unit
+		{koinu.Koinu(100000000), "1"},                              // whole number
+		{koinu.Koinu(100500000), "1.005"},                          // leading zeros in fractional part
+		{koinu.Koinu(0), "0"},                                      // zero
+		{koinu.Koinu(-1225000000), "-12.25"},                       // negative value
+		{koinu.Koinu(1225000000), "12.25"},                         // positive decimal
+		{koinu.Koinu(10000000), "0.1"},                             // 0.1
+		{koinu.Koinu(99999999), "0.99999999"},                      // just under 1 doge
+		{koinu.Koinu(-1), "-0.00000001"},                           // negative smallest unit
+		{koinu.Koinu(-100000000), "-1"},                            // negative whole
+		{koinu.Koinu(10 * koinu.OneDoge), "10"},                    // round 10
+		{koinu.Koinu(12*koinu.OneDoge + koinu.OneDoge/4), "12.25"},  // original test case
+		{koinu.Koinu(math.MinInt64), "-92233720368.54775808"},          // MinInt64: no overflow/infinite recursion
 	}
 	for _, tt := range tests {
 		got := tt.val.String()

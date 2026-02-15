@@ -93,7 +93,7 @@ func VerifyPaymentRequest(env ConnectEnvelope, pubKeyHash []byte) (ConnectPaymen
 	if err := json.Unmarshal(payload, &payment); err != nil {
 		return ConnectPayment{}, fmt.Errorf("invalid envelope: malformed payload JSON: %v", err)
 	}
-	if payment.Type != PaymentRequestType {
+	if payment.Type != PaymentTypePayment {
 		return ConnectPayment{}, fmt.Errorf("bad envelope: not a payment request")
 	}
 	return payment, nil

@@ -31,7 +31,7 @@ func TestSignAndVerify(t *testing.T) {
 	privKey, pubKeyCheck := newTestKey(t)
 
 	payment := dogeconnectgo.ConnectPayment{
-		Type:          dogeconnectgo.PaymentRequestType,
+		Type:          dogeconnectgo.PaymentTypePayment,
 		ID:            "101",
 		Issued:        "2025-02-19T14:07:20+11:00",
 		Timeout:       30,
@@ -44,7 +44,7 @@ func TestSignAndVerify(t *testing.T) {
 		Taxes:         "0",
 		Items: []dogeconnectgo.ConnectItem{
 			{
-				Type:        "item",
+				Type:        dogeconnectgo.ItemTypeItem,
 				ID:          "123",
 				Icon:        "https://static.example.com/vnd/1234/item/123.png",
 				Name:        "Good Item",
@@ -79,11 +79,12 @@ func TestMinimalPaymentRoundTrip(t *testing.T) {
 	privKey, pubKeyCheck := newTestKey(t)
 
 	payment := dogeconnectgo.ConnectPayment{
-		Type:   dogeconnectgo.PaymentRequestType,
-		ID:     "minimal-1",
-		Issued: "2025-06-01T00:00:00Z",
-		Relay:  "https://example.com/dc/minimal",
-		Total:  "10",
+		Type:       dogeconnectgo.PaymentTypePayment,
+		ID:         "minimal-1",
+		Issued:     "2025-06-01T00:00:00Z",
+		Relay:      "https://example.com/dc/minimal",
+		VendorName: "Test",
+		Total:      "10",
 		Outputs: []dogeconnectgo.ConnectOutput{
 			{Address: "DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY", Amount: "10"},
 		},
@@ -141,11 +142,12 @@ func TestMalformedPayloadReturnsError(t *testing.T) {
 
 func TestMinimalPaymentJSONShape(t *testing.T) {
 	payment := dogeconnectgo.ConnectPayment{
-		Type:   dogeconnectgo.PaymentRequestType,
-		ID:     "shape-1",
-		Issued: "2025-06-01T00:00:00Z",
-		Relay:  "https://example.com/dc/shape",
-		Total:  "5",
+		Type:       dogeconnectgo.PaymentTypePayment,
+		ID:         "shape-1",
+		Issued:     "2025-06-01T00:00:00Z",
+		Relay:      "https://example.com/dc/shape",
+		VendorName: "Test",
+		Total:      "5",
 		Outputs: []dogeconnectgo.ConnectOutput{
 			{Address: "DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY", Amount: "5"},
 		},
@@ -164,10 +166,9 @@ func TestMinimalPaymentJSONShape(t *testing.T) {
 	// These optional fields should be absent when zero/empty.
 	absent := []string{
 		"timeout", "fee_per_kb", "max_size",
-		"vendor_icon", "vendor_name", "vendor_address",
+		"vendor_icon", "vendor_address",
 		"fees", "taxes",
 		"fiat_total", "fiat_tax", "fiat_currency",
-		"items",
 	}
 	for _, key := range absent {
 		if _, ok := m[key]; ok {
@@ -176,7 +177,7 @@ func TestMinimalPaymentJSONShape(t *testing.T) {
 	}
 
 	// These required fields should be present.
-	present := []string{"type", "id", "issued", "relay", "total", "outputs"}
+	present := []string{"type", "id", "issued", "relay", "vendor_name", "total", "items", "outputs"}
 	for _, key := range present {
 		if _, ok := m[key]; !ok {
 			t.Errorf("required key %q should be present in JSON, but is absent", key)
