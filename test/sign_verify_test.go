@@ -31,17 +31,24 @@ func TestSignAndVerify(t *testing.T) {
 	privKey, pubKeyCheck := newTestKey(t)
 
 	payment := dogeconnectgo.ConnectPayment{
-		Type:          dogeconnectgo.PaymentTypePayment,
-		ID:            "101",
-		Issued:        "2025-02-19T14:07:20+11:00",
-		Timeout:       30,
-		Relay:         "https://example.com/dc/1QAB-POvTh2R88nybE8Wwg",
-		VendorIcon:    "https://static.example.com/vnd/1234/icon.png",
-		VendorName:    "Example Co",
-		VendorAddress: "123 Example St",
-		Total:         "420.69",
-		Fees:          "6.31035",
-		Taxes:         "0",
+		Type:           dogeconnectgo.EnvelopeTypePayment,
+		ID:             "101",
+		Issued:         "2025-02-19T14:07:20+11:00",
+		Timeout:        30,
+		Relay:          "https://example.com/dc/1QAB-POvTh2R88nybE8Wwg",
+		VendorIcon:     "https://static.example.com/vnd/1234/icon.png",
+		VendorName:     "Example Co",
+		VendorAddress:  "123 Example St",
+		FeePerKB:       "0.01",
+		MaxSize:        10000,
+		VendorURL:      "https://example.com",
+		VendorOrderURL: "https://example.com/orders/101",
+		VendorOrderID:  "INV-101",
+		OrderReference: "ORD-101",
+		Note:           "Thanks for your order!",
+		Total:          "420.69",
+		Fees:           "6.31035",
+		Taxes:          "0",
 		Items: []dogeconnectgo.ConnectItem{
 			{
 				Type:        dogeconnectgo.ItemTypeItem,
@@ -79,10 +86,13 @@ func TestMinimalPaymentRoundTrip(t *testing.T) {
 	privKey, pubKeyCheck := newTestKey(t)
 
 	payment := dogeconnectgo.ConnectPayment{
-		Type:       dogeconnectgo.PaymentTypePayment,
+		Type:       dogeconnectgo.EnvelopeTypePayment,
 		ID:         "minimal-1",
 		Issued:     "2025-06-01T00:00:00Z",
+		Timeout:    60,
 		Relay:      "https://example.com/dc/minimal",
+		FeePerKB:   "0.01",
+		MaxSize:    10000,
 		VendorName: "Test",
 		Total:      "10",
 		Outputs: []dogeconnectgo.ConnectOutput{
@@ -142,7 +152,7 @@ func TestMalformedPayloadReturnsError(t *testing.T) {
 
 func TestMinimalPaymentJSONShape(t *testing.T) {
 	payment := dogeconnectgo.ConnectPayment{
-		Type:       dogeconnectgo.PaymentTypePayment,
+		Type:       dogeconnectgo.EnvelopeTypePayment,
 		ID:         "shape-1",
 		Issued:     "2025-06-01T00:00:00Z",
 		Relay:      "https://example.com/dc/shape",
@@ -165,8 +175,10 @@ func TestMinimalPaymentJSONShape(t *testing.T) {
 
 	// These optional fields should be absent when zero/empty.
 	absent := []string{
-		"timeout", "fee_per_kb", "max_size",
+		"relay_token",
 		"vendor_icon", "vendor_address",
+		"vendor_url", "vendor_order_url",
+		"vendor_order_id", "order_reference", "note",
 		"fees", "taxes",
 		"fiat_total", "fiat_tax", "fiat_currency",
 	}
@@ -177,7 +189,7 @@ func TestMinimalPaymentJSONShape(t *testing.T) {
 	}
 
 	// These required fields should be present.
-	present := []string{"type", "id", "issued", "relay", "vendor_name", "total", "items", "outputs"}
+	present := []string{"type", "id", "issued", "timeout", "relay", "fee_per_kb", "max_size", "vendor_name", "total", "items", "outputs"}
 	for _, key := range present {
 		if _, ok := m[key]; !ok {
 			t.Errorf("required key %q should be present in JSON, but is absent", key)

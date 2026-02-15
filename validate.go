@@ -91,8 +91,8 @@ func (e ConnectEnvelope) Validate() []FieldError {
 func (p ConnectPayment) Validate() []FieldError {
 	var errs []FieldError
 
-	if p.Type != PaymentTypePayment {
-		errs = append(errs, FieldError{"type", fmt.Sprintf("must be %q", PaymentTypePayment)})
+	if p.Type != EnvelopeTypePayment {
+		errs = append(errs, FieldError{"type", fmt.Sprintf("must be %q", EnvelopeTypePayment)})
 	}
 	requireNonEmpty(&errs, "id", p.ID)
 	requireNonEmpty(&errs, "relay", p.Relay)
@@ -105,7 +105,7 @@ func (p ConnectPayment) Validate() []FieldError {
 	}
 
 	requireKoinu(&errs, "total", p.Total)
-	optionalKoinu(&errs, "fee_per_kb", p.FeePerKB)
+	requireKoinu(&errs, "fee_per_kb", p.FeePerKB)
 	optionalKoinu(&errs, "fees", p.Fees)
 	optionalKoinu(&errs, "taxes", p.Taxes)
 
@@ -114,10 +114,10 @@ func (p ConnectPayment) Validate() []FieldError {
 	}
 
 	if p.Timeout < 0 {
-		errs = append(errs, FieldError{"timeout", "must be > 0"})
+		errs = append(errs, FieldError{"timeout", "must be >= 0"})
 	}
 	if p.MaxSize < 0 {
-		errs = append(errs, FieldError{"max_size", "must be > 0"})
+		errs = append(errs, FieldError{"max_size", "must be >= 0"})
 	}
 
 	if p.Items == nil {
@@ -193,6 +193,21 @@ func (q StatusQuery) Validate() []FieldError {
 	return errs
 }
 
+// Validate checks the ErrorResponse fields.
+func (e ErrorResponse) Validate() []FieldError {
+	var errs []FieldError
+	switch e.Error {
+	case ErrorCodeNotFound, ErrorCodeExpired, ErrorCodeInvalidTx, ErrorCodeInvalidOutputs, ErrorCodeInvalidToken:
+		// valid
+	case "":
+		errs = append(errs, FieldError{"error", "required"})
+	default:
+		errs = append(errs, FieldError{"error", "invalid error code"})
+	}
+	requireNonEmpty(&errs, "message", e.Message)
+	return errs
+}
+
 // Validate checks the PaymentStatusResponse fields.
 func (r PaymentStatusResponse) Validate() []FieldError {
 	var errs []FieldError
@@ -203,10 +218,24 @@ func (r PaymentStatusResponse) Validate() []FieldError {
 	default:
 		errs = append(errs, FieldError{"status", "invalid payment status"})
 	}
+	// Conditional field presence per status.
+	if r.Reason != "" && r.Status != PaymentStatusDeclined {
+		errs = append(errs, FieldError{"reason", "only allowed when status is declined"})
+	}
+	if r.TxID != "" && r.Status != PaymentStatusAccepted && r.Status != PaymentStatusConfirmed {
+		errs = append(errs, FieldError{"txid", "only allowed when status is accepted or confirmed"})
+	}
+	if r.ConfirmedAt != "" && r.Status != PaymentStatusConfirmed {
+		errs = append(errs, FieldError{"confirmed_at", "only allowed when status is confirmed"})
+	}
 	if r.ConfirmedAt != "" {
 		if _, err := time.Parse(time.RFC3339, r.ConfirmedAt); err != nil {
 			errs = append(errs, FieldError{"confirmed_at", "invalid RFC 3339 timestamp"})
 		}
+	}
+	if (r.Required != nil || r.Confirmed != nil || r.DueSec != nil) &&
+		r.Status != PaymentStatusAccepted && r.Status != PaymentStatusConfirmed {
+		errs = append(errs, FieldError{"required/confirmed/due_sec", "only allowed when status is accepted or confirmed"})
 	}
 	return errs
 }

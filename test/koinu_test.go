@@ -24,8 +24,8 @@ func TestKoinuString(t *testing.T) {
 		{koinu.Koinu(-1), "-0.00000001"},                           // negative smallest unit
 		{koinu.Koinu(-100000000), "-1"},                            // negative whole
 		{koinu.Koinu(10 * koinu.OneDoge), "10"},                    // round 10
-		{koinu.Koinu(12*koinu.OneDoge + koinu.OneDoge/4), "12.25"},  // original test case
-		{koinu.Koinu(math.MinInt64), "-92233720368.54775808"},          // MinInt64: no overflow/infinite recursion
+		{koinu.Koinu(12*koinu.OneDoge + koinu.OneDoge/4), "12.25"}, // original test case
+		{koinu.Koinu(math.MinInt64), "-92233720368.54775808"},      // MinInt64: no overflow/infinite recursion
 	}
 	for _, tt := range tests {
 		got := tt.val.String()

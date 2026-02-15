@@ -10,10 +10,13 @@ import (
 
 func validPayment() dogeconnectgo.ConnectPayment {
 	return dogeconnectgo.ConnectPayment{
-		Type:       dogeconnectgo.PaymentTypePayment,
+		Type:       dogeconnectgo.EnvelopeTypePayment,
 		ID:         "pay-1",
 		Issued:     "2025-06-01T00:00:00Z",
+		Timeout:    60,
 		Relay:      "https://example.com/dc/1",
+		FeePerKB:   "0.01",
+		MaxSize:    10000,
 		VendorName: "Test Vendor",
 		Total:      "100",
 		Items:      []dogeconnectgo.ConnectItem{validItem()},
@@ -122,6 +125,7 @@ func TestPaymentValidation(t *testing.T) {
 		{"empty vendor_name", func(p *dogeconnectgo.ConnectPayment) { p.VendorName = "" }, "vendor_name"},
 		{"empty total", func(p *dogeconnectgo.ConnectPayment) { p.Total = "" }, "total"},
 		{"bad total", func(p *dogeconnectgo.ConnectPayment) { p.Total = "abc" }, "total"},
+		{"empty fee_per_kb", func(p *dogeconnectgo.ConnectPayment) { p.FeePerKB = "" }, "fee_per_kb"},
 		{"bad fee_per_kb", func(p *dogeconnectgo.ConnectPayment) { p.FeePerKB = "abc" }, "fee_per_kb"},
 		{"bad fees", func(p *dogeconnectgo.ConnectPayment) { p.Fees = "abc" }, "fees"},
 		{"bad taxes", func(p *dogeconnectgo.ConnectPayment) { p.Taxes = "abc" }, "taxes"},
@@ -321,6 +325,49 @@ func TestStatusResponseConfirmedAtValid(t *testing.T) {
 	requireNoErrors(t, r.Validate())
 }
 
+func TestStatusResponseConditionalFields(t *testing.T) {
+	tests := []struct {
+		name  string
+		resp  dogeconnectgo.PaymentStatusResponse
+		field string
+	}{
+		{"reason with unpaid", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusUnpaid, Reason: "oops"}, "reason"},
+		{"reason with accepted", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusAccepted, Reason: "oops"}, "reason"},
+		{"reason with confirmed", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusConfirmed, Reason: "oops"}, "reason"},
+		{"txid with unpaid", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusUnpaid, TxID: "deadbeef"}, "txid"},
+		{"txid with declined", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusDeclined, TxID: "deadbeef", Reason: "bad"}, "txid"},
+		{"confirmed_at with unpaid", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusUnpaid, ConfirmedAt: "2025-06-01T12:00:00Z"}, "confirmed_at"},
+		{"confirmed_at with accepted", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusAccepted, ConfirmedAt: "2025-06-01T12:00:00Z"}, "confirmed_at"},
+		{"confirmed_at with declined", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusDeclined, ConfirmedAt: "2025-06-01T12:00:00Z", Reason: "bad"}, "confirmed_at"},
+		{"required with unpaid", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusUnpaid, Required: dogeconnectgo.Ptr(6)}, "required/confirmed/due_sec"},
+		{"confirmed count with declined", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusDeclined, Confirmed: dogeconnectgo.Ptr(0), Reason: "bad"}, "required/confirmed/due_sec"},
+		{"due_sec with unpaid", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusUnpaid, DueSec: dogeconnectgo.Ptr(600)}, "required/confirmed/due_sec"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			requireFieldError(t, tc.resp.Validate(), tc.field)
+		})
+	}
+}
+
+func TestStatusResponseConditionalFieldsValid(t *testing.T) {
+	// reason allowed with declined
+	r := dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusDeclined, Reason: "insufficient funds"}
+	requireNoErrors(t, r.Validate())
+
+	// txid allowed with accepted
+	r = dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusAccepted, TxID: "deadbeef"}
+	requireNoErrors(t, r.Validate())
+
+	// txid allowed with confirmed
+	r = dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusConfirmed, TxID: "deadbeef", ConfirmedAt: "2025-06-01T12:00:00Z"}
+	requireNoErrors(t, r.Validate())
+
+	// required/confirmed/due_sec allowed with accepted
+	r = dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusAccepted, Required: dogeconnectgo.Ptr(6), Confirmed: dogeconnectgo.Ptr(0), DueSec: dogeconnectgo.Ptr(600)}
+	requireNoErrors(t, r.Validate())
+}
+
 func TestStatusResponseAllStatuses(t *testing.T) {
 	statuses := []dogeconnectgo.PaymentStatus{
 		dogeconnectgo.PaymentStatusUnpaid,
@@ -332,6 +379,54 @@ func TestStatusResponseAllStatuses(t *testing.T) {
 		t.Run(string(s), func(t *testing.T) {
 			r := dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: s}
 			requireNoErrors(t, r.Validate())
+		})
+	}
+}
+
+// ErrorResponse validation
+
+func validErrorResponse() dogeconnectgo.ErrorResponse {
+	return dogeconnectgo.ErrorResponse{
+		Error:   dogeconnectgo.ErrorCodeNotFound,
+		Message: "payment not found",
+	}
+}
+
+func TestErrorResponseValidValid(t *testing.T) {
+	requireNoErrors(t, validErrorResponse().Validate())
+}
+
+func TestErrorResponseValidation(t *testing.T) {
+	tests := []struct {
+		name  string
+		mod   func(*dogeconnectgo.ErrorResponse)
+		field string
+	}{
+		{"empty code", func(e *dogeconnectgo.ErrorResponse) { e.Error = "" }, "error"},
+		{"bad code", func(e *dogeconnectgo.ErrorResponse) { e.Error = "bogus" }, "error"},
+		{"empty message", func(e *dogeconnectgo.ErrorResponse) { e.Message = "" }, "message"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			e := validErrorResponse()
+			tc.mod(&e)
+			requireFieldError(t, e.Validate(), tc.field)
+		})
+	}
+}
+
+func TestErrorResponseAllCodes(t *testing.T) {
+	codes := []dogeconnectgo.ErrorCode{
+		dogeconnectgo.ErrorCodeNotFound,
+		dogeconnectgo.ErrorCodeExpired,
+		dogeconnectgo.ErrorCodeInvalidTx,
+		dogeconnectgo.ErrorCodeInvalidOutputs,
+		dogeconnectgo.ErrorCodeInvalidToken,
+	}
+	for _, code := range codes {
+		t.Run(string(code), func(t *testing.T) {
+			e := dogeconnectgo.ErrorResponse{Error: code, Message: "test"}
+			requireNoErrors(t, e.Validate())
 		})
 	}
 }
