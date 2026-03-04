@@ -55,7 +55,7 @@ func VerifyPaymentRequest(env ConnectEnvelope, pubKeyHash []byte) (ConnectPaymen
 	if err != nil {
 		return ConnectPayment{}, fmt.Errorf("invalid envelope: malformed pubkey hex")
 	}
-	sig_b, err := hex.DecodeString(env.Signature)
+	sigB, err := hex.DecodeString(env.Signature)
 	if err != nil {
 		return ConnectPayment{}, fmt.Errorf("invalid envelope: malformed signature hex")
 	}
@@ -81,7 +81,7 @@ func VerifyPaymentRequest(env ConnectEnvelope, pubKeyHash []byte) (ConnectPaymen
 	}
 
 	// Verify the BIP-340 Schnorr signature.
-	sig, err := schnorr.ParseSignature(sig_b)
+	sig, err := schnorr.ParseSignature(sigB)
 	if err != nil {
 		return ConnectPayment{}, fmt.Errorf("invalid envelope: not a valid signature")
 	}

@@ -129,7 +129,9 @@ func TestPaymentValidation(t *testing.T) {
 		{"bad fee_per_kb", func(p *dogeconnectgo.ConnectPayment) { p.FeePerKB = "abc" }, "fee_per_kb"},
 		{"bad fees", func(p *dogeconnectgo.ConnectPayment) { p.Fees = "abc" }, "fees"},
 		{"bad taxes", func(p *dogeconnectgo.ConnectPayment) { p.Taxes = "abc" }, "taxes"},
+		{"zero timeout", func(p *dogeconnectgo.ConnectPayment) { p.Timeout = 0 }, "timeout"},
 		{"negative timeout", func(p *dogeconnectgo.ConnectPayment) { p.Timeout = -1 }, "timeout"},
+		{"zero max_size", func(p *dogeconnectgo.ConnectPayment) { p.MaxSize = 0 }, "max_size"},
 		{"negative max_size", func(p *dogeconnectgo.ConnectPayment) { p.MaxSize = -1 }, "max_size"},
 		{"nil items", func(p *dogeconnectgo.ConnectPayment) { p.Items = nil }, "items"},
 		{"nil outputs", func(p *dogeconnectgo.ConnectPayment) { p.Outputs = nil }, "outputs"},
@@ -199,6 +201,21 @@ func TestItemValidation(t *testing.T) {
 		{"empty total", func(i *dogeconnectgo.ConnectItem) { i.Total = "" }, "total"},
 		{"bad total", func(i *dogeconnectgo.ConnectItem) { i.Total = "abc" }, "total"},
 		{"bad tax", func(i *dogeconnectgo.ConnectItem) { i.Tax = "abc" }, "tax"},
+		{"discount positive unit", func(i *dogeconnectgo.ConnectItem) {
+			i.Type = dogeconnectgo.ItemTypeDiscount
+			i.UnitCost = "5"
+			i.Total = "-5"
+		}, "unit"},
+		{"discount positive total", func(i *dogeconnectgo.ConnectItem) {
+			i.Type = dogeconnectgo.ItemTypeDiscount
+			i.UnitCost = "-5"
+			i.Total = "5"
+		}, "total"},
+		{"discount zero unit", func(i *dogeconnectgo.ConnectItem) {
+			i.Type = dogeconnectgo.ItemTypeDiscount
+			i.UnitCost = "0"
+			i.Total = "0"
+		}, "unit"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -207,6 +224,14 @@ func TestItemValidation(t *testing.T) {
 			requireFieldError(t, i.Validate(), tc.field)
 		})
 	}
+}
+
+func TestDiscountItemValid(t *testing.T) {
+	i := validItem()
+	i.Type = dogeconnectgo.ItemTypeDiscount
+	i.UnitCost = "-5"
+	i.Total = "-5"
+	requireNoErrors(t, i.Validate())
 }
 
 func TestItemAllTypes(t *testing.T) {
@@ -222,6 +247,10 @@ func TestItemAllTypes(t *testing.T) {
 		t.Run(string(typ), func(t *testing.T) {
 			i := validItem()
 			i.Type = typ
+			if typ == dogeconnectgo.ItemTypeDiscount {
+				i.UnitCost = "-100"
+				i.Total = "-100"
+			}
 			requireNoErrors(t, i.Validate())
 		})
 	}
@@ -305,6 +334,7 @@ func TestStatusResponseValidation(t *testing.T) {
 		{"bad status", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: "bogus"}, "status"},
 		{"empty status", dogeconnectgo.PaymentStatusResponse{ID: "pay-1"}, "status"},
 		{"bad confirmed_at", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusConfirmed, ConfirmedAt: "not-a-date"}, "confirmed_at"},
+		{"bad txid hex", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusAccepted, TxID: "not-hex!"}, "txid"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -318,9 +348,9 @@ func TestStatusResponseConfirmedAtValid(t *testing.T) {
 		ID:          "pay-1",
 		Status:      dogeconnectgo.PaymentStatusConfirmed,
 		ConfirmedAt: "2025-06-01T12:00:00Z",
-		Required:    dogeconnectgo.Ptr(6),
-		Confirmed:   dogeconnectgo.Ptr(0),
-		DueSec:      dogeconnectgo.Ptr(600),
+		Required:    new(6),
+		Confirmed:   new(0),
+		DueSec:      new(600),
 	}
 	requireNoErrors(t, r.Validate())
 }
@@ -339,9 +369,9 @@ func TestStatusResponseConditionalFields(t *testing.T) {
 		{"confirmed_at with unpaid", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusUnpaid, ConfirmedAt: "2025-06-01T12:00:00Z"}, "confirmed_at"},
 		{"confirmed_at with accepted", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusAccepted, ConfirmedAt: "2025-06-01T12:00:00Z"}, "confirmed_at"},
 		{"confirmed_at with declined", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusDeclined, ConfirmedAt: "2025-06-01T12:00:00Z", Reason: "bad"}, "confirmed_at"},
-		{"required with unpaid", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusUnpaid, Required: dogeconnectgo.Ptr(6)}, "required/confirmed/due_sec"},
-		{"confirmed count with declined", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusDeclined, Confirmed: dogeconnectgo.Ptr(0), Reason: "bad"}, "required/confirmed/due_sec"},
-		{"due_sec with unpaid", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusUnpaid, DueSec: dogeconnectgo.Ptr(600)}, "required/confirmed/due_sec"},
+		{"required with unpaid", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusUnpaid, Required: new(6)}, "required/confirmed/due_sec"},
+		{"confirmed count with declined", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusDeclined, Confirmed: new(0), Reason: "bad"}, "required/confirmed/due_sec"},
+		{"due_sec with unpaid", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusUnpaid, DueSec: new(600)}, "required/confirmed/due_sec"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -364,7 +394,7 @@ func TestStatusResponseConditionalFieldsValid(t *testing.T) {
 	requireNoErrors(t, r.Validate())
 
 	// required/confirmed/due_sec allowed with accepted
-	r = dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusAccepted, Required: dogeconnectgo.Ptr(6), Confirmed: dogeconnectgo.Ptr(0), DueSec: dogeconnectgo.Ptr(600)}
+	r = dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusAccepted, Required: new(6), Confirmed: new(0), DueSec: new(600)}
 	requireNoErrors(t, r.Validate())
 }
 

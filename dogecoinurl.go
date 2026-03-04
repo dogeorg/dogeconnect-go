@@ -39,7 +39,17 @@ func ParseDogecoinURI(dogecoinURI string) (res DogeURI, err error) {
 	args := url.Query()
 	res.Amount = args.Get("amount")
 	res.ConnectURL = args.Get("dc")
-	res.PubKeyHash, _ = base64.URLEncoding.DecodeString(args.Get("h"))
+	h := args.Get("h")
+	// dc and h must both be present or both be absent.
+	if (res.ConnectURL != "") != (h != "") {
+		return DogeURI{}, fmt.Errorf("invalid url: 'dc' and 'h' parameters must both be present")
+	}
+	if h != "" {
+		res.PubKeyHash, err = base64.URLEncoding.DecodeString(h)
+		if err != nil {
+			return DogeURI{}, fmt.Errorf("invalid url: cannot decode 'h' parameter: %v", err)
+		}
+	}
 	return
 }
 

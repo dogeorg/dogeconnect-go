@@ -52,6 +52,15 @@ func requireValidHex(errs *[]FieldError, field, value string) {
 	}
 }
 
+func optionalValidHex(errs *[]FieldError, field, value string) {
+	if value == "" {
+		return
+	}
+	if _, err := hex.DecodeString(value); err != nil {
+		*errs = append(*errs, FieldError{field, "invalid hex"})
+	}
+}
+
 func requireKoinu(errs *[]FieldError, field, value string) {
 	if value == "" {
 		*errs = append(*errs, FieldError{field, "required"})
@@ -113,11 +122,11 @@ func (p ConnectPayment) Validate() []FieldError {
 		errs = append(errs, FieldError{"fiat_currency", "required when fiat_total or fiat_tax is set"})
 	}
 
-	if p.Timeout < 0 {
-		errs = append(errs, FieldError{"timeout", "must be >= 0"})
+	if p.Timeout < 1 {
+		errs = append(errs, FieldError{"timeout", "must be > 0"})
 	}
-	if p.MaxSize < 0 {
-		errs = append(errs, FieldError{"max_size", "must be >= 0"})
+	if p.MaxSize < 1 {
+		errs = append(errs, FieldError{"max_size", "must be > 0"})
 	}
 
 	if p.Items == nil {
@@ -166,6 +175,15 @@ func (item ConnectItem) Validate() []FieldError {
 	requireKoinu(&errs, "unit", item.UnitCost)
 	requireKoinu(&errs, "total", item.Total)
 	optionalKoinu(&errs, "tax", item.Tax)
+
+	if item.Type == ItemTypeDiscount {
+		if v, err := koinu.ParseKoinu(item.UnitCost); err == nil && v >= 0 {
+			errs = append(errs, FieldError{"unit", "discount unit must be negative"})
+		}
+		if v, err := koinu.ParseKoinu(item.Total); err == nil && v >= 0 {
+			errs = append(errs, FieldError{"total", "discount total must be negative"})
+		}
+	}
 
 	return errs
 }
@@ -225,6 +243,7 @@ func (r PaymentStatusResponse) Validate() []FieldError {
 	if r.TxID != "" && r.Status != PaymentStatusAccepted && r.Status != PaymentStatusConfirmed {
 		errs = append(errs, FieldError{"txid", "only allowed when status is accepted or confirmed"})
 	}
+	optionalValidHex(&errs, "txid", r.TxID)
 	if r.ConfirmedAt != "" && r.Status != PaymentStatusConfirmed {
 		errs = append(errs, FieldError{"confirmed_at", "only allowed when status is confirmed"})
 	}

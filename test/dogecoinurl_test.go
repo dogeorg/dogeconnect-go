@@ -41,6 +41,42 @@ func TestDogecoinURL(t *testing.T) {
 	}
 }
 
+func TestPlainDogecoinURI(t *testing.T) {
+	res, err := dogeconnectgo.ParseDogecoinURI("dogecoin:DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY?amount=8.25")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.IsConnectURI() {
+		t.Error("plain dogecoin URI should not be a connect URI")
+	}
+	if res.Address != "DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY" {
+		t.Errorf("wrong address: %v", res.Address)
+	}
+	if res.Amount != "8.25" {
+		t.Errorf("wrong amount: %v", res.Amount)
+	}
+}
+
+func TestParseDogecoinURIErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		uri  string
+	}{
+		{"wrong scheme", "bitcoin:DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY?amount=1"},
+		{"bad base64 h", "dogecoin:DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY?amount=1&dc=example.com&h=!!!invalid!!!"},
+		{"dc without h", "dogecoin:DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY?amount=1&dc=example.com/dc/1234"},
+		{"h without dc", "dogecoin:DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY?amount=1&h=72b-LVh5K_mm7zyN9PXO"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := dogeconnectgo.ParseDogecoinURI(tc.uri)
+			if err == nil {
+				t.Errorf("expected error for %q, got nil", tc.uri)
+			}
+		})
+	}
+}
+
 func TestSlashInDC(t *testing.T) {
 	connectURL := "example.com/dc/1QAB"
 	uri := "dogecoin:DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY?amount=12.25&dc=example.com/dc/1QAB&h=72b-LVh5K_mm7zyN9PXO"

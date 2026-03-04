@@ -1,6 +1,6 @@
 module github.com/dogeorg/dogeconnect-go
 
-go 1.21
+go 1.26
 
 require github.com/btcsuite/btcd/btcec/v2 v2.3.4
 

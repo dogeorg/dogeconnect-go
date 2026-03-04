@@ -17,21 +17,19 @@ const MaxMoney = 10_000_000_000 * OneDoge // max transaction is 10,000,000,000 D
 
 // String implements fmt.Stringer
 func (val Koinu) String() string {
-	if val < 0 {
-		// Negate the quotient and remainder separately to avoid overflow.
-		// -val overflows for math.MinInt64, but -(val/OneDoge) and -(val%OneDoge)
-		// are both small enough to negate safely.
-		whole := -(val / OneDoge)
-		part := -(val % OneDoge)
-		if part != 0 {
-			return strings.TrimRight(fmt.Sprintf("-%d.%08d", whole, part), "0")
-		}
-		return fmt.Sprintf("-%d", whole)
-	}
+	// Negate the quotient and remainder separately to avoid overflow.
+	// -val overflows for math.MinInt64, but -(val/OneDoge) and -(val%OneDoge)
+	// are both small enough to negate safely.
+	sign := ""
 	whole := val / OneDoge
 	part := val % OneDoge
-	if part != 0 {
-		return strings.TrimRight(fmt.Sprintf("%d.%08d", whole, part), "0")
+	if val < 0 {
+		sign = "-"
+		whole = -whole
+		part = -part
 	}
-	return fmt.Sprintf("%d", whole)
+	if part != 0 {
+		return strings.TrimRight(fmt.Sprintf("%s%d.%08d", sign, whole, part), "0")
+	}
+	return fmt.Sprintf("%s%d", sign, whole)
 }

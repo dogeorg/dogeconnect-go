@@ -173,26 +173,33 @@ func TestMinimalPaymentJSONShape(t *testing.T) {
 		t.Fatalf("failed to unmarshal to map: %v", err)
 	}
 
-	// These optional fields should be absent when zero/empty.
-	absent := []string{
-		"relay_token",
-		"vendor_icon", "vendor_address",
-		"vendor_url", "vendor_order_url",
-		"vendor_order_id", "order_reference", "note",
-		"fees", "taxes",
+	// All fields should be present in JSON (no omitempty on string fields).
+	present := []string{
+		"type", "id", "issued", "timeout", "relay", "relay_token",
+		"fee_per_kb", "max_size",
+		"vendor_icon", "vendor_name", "vendor_address",
+		"vendor_url", "vendor_order_url", "vendor_order_id",
+		"order_reference", "note",
+		"total", "fees", "taxes",
 		"fiat_total", "fiat_tax", "fiat_currency",
+		"items", "outputs",
 	}
-	for _, key := range absent {
-		if _, ok := m[key]; ok {
-			t.Errorf("optional key %q should be absent from JSON, but is present", key)
+	for _, key := range present {
+		if _, ok := m[key]; !ok {
+			t.Errorf("key %q should be present in JSON, but is absent", key)
 		}
 	}
 
-	// These required fields should be present.
-	present := []string{"type", "id", "issued", "timeout", "relay", "fee_per_kb", "max_size", "vendor_name", "total", "items", "outputs"}
-	for _, key := range present {
-		if _, ok := m[key]; !ok {
-			t.Errorf("required key %q should be present in JSON, but is absent", key)
+	// Optional string fields should be empty strings when unset.
+	emptyStrings := []string{
+		"relay_token", "vendor_icon", "vendor_address",
+		"vendor_url", "vendor_order_url", "vendor_order_id",
+		"order_reference", "note", "fees", "taxes",
+		"fiat_total", "fiat_tax", "fiat_currency",
+	}
+	for _, key := range emptyStrings {
+		if m[key] != "" {
+			t.Errorf("optional key %q should be empty string, got %v", key, m[key])
 		}
 	}
 }
