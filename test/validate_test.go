@@ -8,6 +8,8 @@ import (
 
 // helpers
 
+func ptr[T any](v T) *T { return &v }
+
 func validPayment() dogeconnectgo.ConnectPayment {
 	return dogeconnectgo.ConnectPayment{
 		Type:       dogeconnectgo.EnvelopeTypePayment,
@@ -348,9 +350,9 @@ func TestStatusResponseConfirmedAtValid(t *testing.T) {
 		ID:          "pay-1",
 		Status:      dogeconnectgo.PaymentStatusConfirmed,
 		ConfirmedAt: "2025-06-01T12:00:00Z",
-		Required:    new(6),
-		Confirmed:   new(0),
-		DueSec:      new(600),
+		Required:    ptr(6),
+		Confirmed:   ptr(0),
+		DueSec:      ptr(600),
 	}
 	requireNoErrors(t, r.Validate())
 }
@@ -369,9 +371,9 @@ func TestStatusResponseConditionalFields(t *testing.T) {
 		{"confirmed_at with unpaid", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusUnpaid, ConfirmedAt: "2025-06-01T12:00:00Z"}, "confirmed_at"},
 		{"confirmed_at with accepted", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusAccepted, ConfirmedAt: "2025-06-01T12:00:00Z"}, "confirmed_at"},
 		{"confirmed_at with declined", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusDeclined, ConfirmedAt: "2025-06-01T12:00:00Z", Reason: "bad"}, "confirmed_at"},
-		{"required with unpaid", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusUnpaid, Required: new(6)}, "required/confirmed/due_sec"},
-		{"confirmed count with declined", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusDeclined, Confirmed: new(0), Reason: "bad"}, "required/confirmed/due_sec"},
-		{"due_sec with unpaid", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusUnpaid, DueSec: new(600)}, "required/confirmed/due_sec"},
+		{"required with unpaid", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusUnpaid, Required: ptr(6)}, "required/confirmed/due_sec"},
+		{"confirmed count with declined", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusDeclined, Confirmed: ptr(0), Reason: "bad"}, "required/confirmed/due_sec"},
+		{"due_sec with unpaid", dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusUnpaid, DueSec: ptr(600)}, "required/confirmed/due_sec"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -394,7 +396,7 @@ func TestStatusResponseConditionalFieldsValid(t *testing.T) {
 	requireNoErrors(t, r.Validate())
 
 	// required/confirmed/due_sec allowed with accepted
-	r = dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusAccepted, Required: new(6), Confirmed: new(0), DueSec: new(600)}
+	r = dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusAccepted, Required: ptr(6), Confirmed: ptr(0), DueSec: ptr(600)}
 	requireNoErrors(t, r.Validate())
 }
 
