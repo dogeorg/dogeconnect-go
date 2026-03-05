@@ -1,17 +1,56 @@
 package test
 
 import (
-	"fmt"
+	"math"
 	"testing"
 
 	"github.com/dogeorg/dogeconnect-go/koinu"
 )
 
 func TestKoinuString(t *testing.T) {
-	val := koinu.Koinu(12*koinu.OneDoge + (koinu.OneDoge / 4)) // 12.25
-	txt := fmt.Sprintf("%v", val)
-	if txt != "12.25" {
-		t.Errorf("incorrect koinu formatting: %v (expecting 12.25)", txt)
+	tests := []struct {
+		val  koinu.Koinu
+		want string
+	}{
+		{koinu.Koinu(1000), "0.00001"},                             // leading zeros in fractional part
+		{koinu.Koinu(1), "0.00000001"},                             // smallest unit
+		{koinu.Koinu(100000000), "1"},                              // whole number
+		{koinu.Koinu(100500000), "1.005"},                          // leading zeros in fractional part
+		{koinu.Koinu(0), "0"},                                      // zero
+		{koinu.Koinu(-1225000000), "-12.25"},                       // negative value
+		{koinu.Koinu(1225000000), "12.25"},                         // positive decimal
+		{koinu.Koinu(10000000), "0.1"},                             // 0.1
+		{koinu.Koinu(99999999), "0.99999999"},                      // just under 1 doge
+		{koinu.Koinu(-1), "-0.00000001"},                           // negative smallest unit
+		{koinu.Koinu(-100000000), "-1"},                            // negative whole
+		{koinu.Koinu(10 * koinu.OneDoge), "10"},                    // round 10
+		{koinu.Koinu(12*koinu.OneDoge + koinu.OneDoge/4), "12.25"}, // original test case
+		{koinu.Koinu(math.MinInt64), "-92233720368.54775808"},      // MinInt64: no overflow/infinite recursion
+	}
+	for _, tt := range tests {
+		got := tt.val.String()
+		if got != tt.want {
+			t.Errorf("Koinu(%d).String() = %q, want %q", int64(tt.val), got, tt.want)
+		}
+	}
+}
+
+func TestKoinuStringRoundTrip(t *testing.T) {
+	values := []koinu.Koinu{
+		0, 1, 100, 1000, 10000000, 25000000, 100000000,
+		100500000, 1225000000, 99999999, 62518192,
+	}
+	for _, v := range values {
+		s := v.String()
+		parsed, err := koinu.ParseKoinu(s)
+		if err != nil {
+			t.Errorf("ParseKoinu(%q) error: %v (from Koinu(%d))", s, err, int64(v))
+			continue
+		}
+		if parsed != v {
+			t.Errorf("round-trip failed: Koinu(%d).String() = %q, ParseKoinu(%q) = %d",
+				int64(v), s, s, int64(parsed))
+		}
 	}
 }
 
@@ -110,7 +149,18 @@ func TestParseErrors(t *testing.T) {
 	}
 }
 
+func TestParseMalformed(t *testing.T) {
+	malformed := []string{"", "-", ".", "-.", "abc", "--1", "1.2.3"}
+	for _, s := range malformed {
+		_, err := koinu.ParseKoinu(s)
+		if err == nil {
+			t.Errorf("ParseKoinu(%q) should fail, got nil error", s)
+		}
+	}
+}
+
 func testParse(t *testing.T, amt string, expect int64) {
+	t.Helper()
 	val, err := koinu.ParseKoinu(amt)
 	if err != nil {
 		t.Errorf("parse error: %v", err)

@@ -15,7 +15,10 @@ func TestDogecoinURL(t *testing.T) {
 	connectURL := "example.com/dc/1QAB-POvTh2R88nybE8Wwg"
 	pubKey, _ := hex.DecodeString("6c52b17752f469c5411b977ba64725d40174d16e780b709b2aff68e0f5abfc50")
 	expect := "dogecoin:DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY?amount=12.25&dc=example.com%2Fdc%2F1QAB-POvTh2R88nybE8Wwg&h=72b-LVh5K_mm7zyN9PXO"
-	uri := dogeconnectgo.DogecoinURI(payTo, amount, "https://"+connectURL, pubKey)
+	uri, err := dogeconnectgo.DogecoinURI(payTo, amount, "https://"+connectURL, pubKey)
+	if err != nil {
+		t.Fatalf("failed to build uri: %v", err)
+	}
 	if uri != expect {
 		t.Errorf("incorrect uri:\n%v (found)\n%v (expected)", uri, expect)
 	}
@@ -38,6 +41,42 @@ func TestDogecoinURL(t *testing.T) {
 	pubSha := sha256.Sum256(pubKey)
 	if !bytes.Equal(res.PubKeyHash, pubSha[0:15]) {
 		t.Errorf("wrong pubkey hash:\n%x vs\n%x", res.PubKeyHash, pubSha[0:15])
+	}
+}
+
+func TestPlainDogecoinURI(t *testing.T) {
+	res, err := dogeconnectgo.ParseDogecoinURI("dogecoin:DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY?amount=8.25")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.IsConnectURI() {
+		t.Error("plain dogecoin URI should not be a connect URI")
+	}
+	if res.Address != "DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY" {
+		t.Errorf("wrong address: %v", res.Address)
+	}
+	if res.Amount != "8.25" {
+		t.Errorf("wrong amount: %v", res.Amount)
+	}
+}
+
+func TestParseDogecoinURIErrors(t *testing.T) {
+	tests := []struct {
+		name string
+		uri  string
+	}{
+		{"wrong scheme", "bitcoin:DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY?amount=1"},
+		{"bad base64 h", "dogecoin:DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY?amount=1&dc=example.com&h=!!!invalid!!!"},
+		{"dc without h", "dogecoin:DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY?amount=1&dc=example.com/dc/1234"},
+		{"h without dc", "dogecoin:DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY?amount=1&h=72b-LVh5K_mm7zyN9PXO"},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := dogeconnectgo.ParseDogecoinURI(tc.uri)
+			if err == nil {
+				t.Errorf("expected error for %q, got nil", tc.uri)
+			}
+		})
 	}
 }
 
