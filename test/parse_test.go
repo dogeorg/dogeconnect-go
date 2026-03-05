@@ -2,8 +2,10 @@ package test
 
 import (
 	"testing"
+	"time"
 
 	dogeconnectgo "github.com/dogeorg/dogeconnect-go"
+	"github.com/dogeorg/dogeconnect-go/koinu"
 )
 
 // helpers
@@ -53,7 +55,7 @@ func validEnvelope() dogeconnectgo.ConnectEnvelope {
 	}
 }
 
-func hasFieldError(errs []dogeconnectgo.FieldError, field string) bool {
+func hasFieldError(errs dogeconnectgo.FieldErrors, field string) bool {
 	for _, e := range errs {
 		if e.Field == field {
 			return true
@@ -62,27 +64,37 @@ func hasFieldError(errs []dogeconnectgo.FieldError, field string) bool {
 	return false
 }
 
-func requireNoErrors(t *testing.T, errs []dogeconnectgo.FieldError) {
+func requireNoErrors(t *testing.T, errs dogeconnectgo.FieldErrors) {
 	t.Helper()
 	if len(errs) > 0 {
 		t.Fatalf("expected no errors, got: %v", errs)
 	}
 }
 
-func requireFieldError(t *testing.T, errs []dogeconnectgo.FieldError, field string) {
+func requireFieldError(t *testing.T, errs dogeconnectgo.FieldErrors, field string) {
 	t.Helper()
 	if !hasFieldError(errs, field) {
 		t.Errorf("expected error on field %q, got: %v", field, errs)
 	}
 }
 
-// ConnectEnvelope validation
+// ConnectEnvelope
 
-func TestEnvelopeValidValid(t *testing.T) {
-	requireNoErrors(t, validEnvelope().Validate())
+func TestEnvelopeParseValid(t *testing.T) {
+	p, errs := validEnvelope().Parse()
+	requireNoErrors(t, errs)
+	if p.PayloadBytes == nil {
+		t.Fatal("expected PayloadBytes to be populated")
+	}
+	if len(p.PubKeyBytes) != 32 {
+		t.Fatalf("expected 32-byte pubkey, got %d", len(p.PubKeyBytes))
+	}
+	if len(p.SignatureBytes) != 64 {
+		t.Fatalf("expected 64-byte signature, got %d", len(p.SignatureBytes))
+	}
 }
 
-func TestEnvelopeValidation(t *testing.T) {
+func TestEnvelopeParseErrors(t *testing.T) {
 	tests := []struct {
 		name  string
 		mod   func(*dogeconnectgo.ConnectEnvelope)
@@ -102,18 +114,43 @@ func TestEnvelopeValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			e := validEnvelope()
 			tc.mod(&e)
-			requireFieldError(t, e.Validate(), tc.field)
+			_, errs := e.Parse()
+			requireFieldError(t, errs, tc.field)
 		})
 	}
 }
 
-// ConnectPayment validation
+// ConnectPayment
 
-func TestPaymentValidValid(t *testing.T) {
-	requireNoErrors(t, validPayment().Validate())
+func TestPaymentParseValid(t *testing.T) {
+	p, errs := validPayment().Parse()
+	requireNoErrors(t, errs)
+
+	expected, _ := time.Parse(time.RFC3339, "2025-06-01T00:00:00Z")
+	if !p.IssuedTime.Equal(expected) {
+		t.Errorf("IssuedTime = %v, want %v", p.IssuedTime, expected)
+	}
+	if p.TotalKoinu != 100*koinu.OneDoge {
+		t.Errorf("TotalKoinu = %d, want %d", p.TotalKoinu, 100*koinu.OneDoge)
+	}
+	if p.FeePerKBKoinu != 1_000_000 {
+		t.Errorf("FeePerKBKoinu = %d, want %d", p.FeePerKBKoinu, 1_000_000)
+	}
+	if len(p.ParsedItems) != 1 {
+		t.Fatalf("expected 1 parsed item, got %d", len(p.ParsedItems))
+	}
+	if p.ParsedItems[0].TotalKoinu != 100*koinu.OneDoge {
+		t.Errorf("item TotalKoinu = %d, want %d", p.ParsedItems[0].TotalKoinu, 100*koinu.OneDoge)
+	}
+	if len(p.ParsedOutputs) != 1 {
+		t.Fatalf("expected 1 parsed output, got %d", len(p.ParsedOutputs))
+	}
+	if p.ParsedOutputs[0].AmountKoinu != 100*koinu.OneDoge {
+		t.Errorf("output AmountKoinu = %d, want %d", p.ParsedOutputs[0].AmountKoinu, 100*koinu.OneDoge)
+	}
 }
 
-func TestPaymentValidation(t *testing.T) {
+func TestPaymentParseErrors(t *testing.T) {
 	tests := []struct {
 		name  string
 		mod   func(*dogeconnectgo.ConnectPayment)
@@ -151,7 +188,8 @@ func TestPaymentValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			p := validPayment()
 			tc.mod(&p)
-			requireFieldError(t, p.Validate(), tc.field)
+			_, errs := p.Parse()
+			requireFieldError(t, errs, tc.field)
 		})
 	}
 }
@@ -159,7 +197,7 @@ func TestPaymentValidation(t *testing.T) {
 func TestPaymentEmptyItemsIsValid(t *testing.T) {
 	p := validPayment()
 	p.Items = []dogeconnectgo.ConnectItem{} // empty slice, not nil
-	errs := p.Validate()
+	_, errs := p.Parse()
 	if hasFieldError(errs, "items") {
 		t.Errorf("empty items slice should be valid, got: %v", errs)
 	}
@@ -170,7 +208,8 @@ func TestPaymentNestedItemErrors(t *testing.T) {
 	bad := validItem()
 	bad.Name = ""
 	p.Items = []dogeconnectgo.ConnectItem{bad}
-	requireFieldError(t, p.Validate(), "items[0].name")
+	_, errs := p.Parse()
+	requireFieldError(t, errs, "items[0].name")
 }
 
 func TestPaymentNestedOutputErrors(t *testing.T) {
@@ -178,16 +217,41 @@ func TestPaymentNestedOutputErrors(t *testing.T) {
 	bad := validOutput()
 	bad.Address = ""
 	p.Outputs = []dogeconnectgo.ConnectOutput{bad}
-	requireFieldError(t, p.Validate(), "outputs[0].address")
+	_, errs := p.Parse()
+	requireFieldError(t, errs, "outputs[0].address")
 }
 
-// ConnectItem validation
-
-func TestItemValidValid(t *testing.T) {
-	requireNoErrors(t, validItem().Validate())
+func TestPaymentBestEffort(t *testing.T) {
+	p := validPayment()
+	p.Total = "abc" // invalid koinu — should error but other fields still parsed
+	parsed, errs := p.Parse()
+	requireFieldError(t, errs, "total")
+	if parsed.TotalKoinu != 0 {
+		t.Errorf("expected zero TotalKoinu on parse failure, got %d", parsed.TotalKoinu)
+	}
+	// Other fields should still be populated
+	if parsed.FeePerKBKoinu != 1_000_000 {
+		t.Errorf("FeePerKBKoinu should still be parsed, got %d", parsed.FeePerKBKoinu)
+	}
+	if parsed.IssuedTime.IsZero() {
+		t.Error("IssuedTime should still be parsed")
+	}
 }
 
-func TestItemValidation(t *testing.T) {
+// ConnectItem
+
+func TestItemParseValid(t *testing.T) {
+	p, errs := validItem().Parse()
+	requireNoErrors(t, errs)
+	if p.UnitCostKoinu != 100*koinu.OneDoge {
+		t.Errorf("UnitCostKoinu = %d, want %d", p.UnitCostKoinu, 100*koinu.OneDoge)
+	}
+	if p.TotalKoinu != 100*koinu.OneDoge {
+		t.Errorf("TotalKoinu = %d, want %d", p.TotalKoinu, 100*koinu.OneDoge)
+	}
+}
+
+func TestItemParseErrors(t *testing.T) {
 	tests := []struct {
 		name  string
 		mod   func(*dogeconnectgo.ConnectItem)
@@ -223,7 +287,8 @@ func TestItemValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			i := validItem()
 			tc.mod(&i)
-			requireFieldError(t, i.Validate(), tc.field)
+			_, errs := i.Parse()
+			requireFieldError(t, errs, tc.field)
 		})
 	}
 }
@@ -233,7 +298,11 @@ func TestDiscountItemValid(t *testing.T) {
 	i.Type = dogeconnectgo.ItemTypeDiscount
 	i.UnitCost = "-5"
 	i.Total = "-5"
-	requireNoErrors(t, i.Validate())
+	p, errs := i.Parse()
+	requireNoErrors(t, errs)
+	if p.UnitCostKoinu >= 0 {
+		t.Errorf("expected negative UnitCostKoinu, got %d", p.UnitCostKoinu)
+	}
 }
 
 func TestItemAllTypes(t *testing.T) {
@@ -253,18 +322,23 @@ func TestItemAllTypes(t *testing.T) {
 				i.UnitCost = "-100"
 				i.Total = "-100"
 			}
-			requireNoErrors(t, i.Validate())
+			_, errs := i.Parse()
+			requireNoErrors(t, errs)
 		})
 	}
 }
 
-// ConnectOutput validation
+// ConnectOutput
 
-func TestOutputValidValid(t *testing.T) {
-	requireNoErrors(t, validOutput().Validate())
+func TestOutputParseValid(t *testing.T) {
+	p, errs := validOutput().Parse()
+	requireNoErrors(t, errs)
+	if p.AmountKoinu != 100*koinu.OneDoge {
+		t.Errorf("AmountKoinu = %d, want %d", p.AmountKoinu, 100*koinu.OneDoge)
+	}
 }
 
-func TestOutputValidation(t *testing.T) {
+func TestOutputParseErrors(t *testing.T) {
 	tests := []struct {
 		name  string
 		mod   func(*dogeconnectgo.ConnectOutput)
@@ -278,19 +352,24 @@ func TestOutputValidation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			o := validOutput()
 			tc.mod(&o)
-			requireFieldError(t, o.Validate(), tc.field)
+			_, errs := o.Parse()
+			requireFieldError(t, errs, tc.field)
 		})
 	}
 }
 
-// PaymentSubmission validation
+// PaymentSubmission
 
-func TestSubmissionValidValid(t *testing.T) {
+func TestSubmissionParseValid(t *testing.T) {
 	s := dogeconnectgo.PaymentSubmission{ID: "pay-1", Tx: "deadbeef"}
-	requireNoErrors(t, s.Validate())
+	p, errs := s.Parse()
+	requireNoErrors(t, errs)
+	if len(p.TxBytes) == 0 {
+		t.Fatal("expected TxBytes to be populated")
+	}
 }
 
-func TestSubmissionValidation(t *testing.T) {
+func TestSubmissionParseErrors(t *testing.T) {
 	tests := []struct {
 		name  string
 		sub   dogeconnectgo.PaymentSubmission
@@ -302,12 +381,13 @@ func TestSubmissionValidation(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			requireFieldError(t, tc.sub.Validate(), tc.field)
+			_, errs := tc.sub.Parse()
+			requireFieldError(t, errs, tc.field)
 		})
 	}
 }
 
-// StatusQuery validation
+// StatusQuery validation (still uses Validate — no Parse needed)
 
 func TestStatusQueryValidValid(t *testing.T) {
 	q := dogeconnectgo.StatusQuery{ID: "pay-1"}
@@ -319,14 +399,15 @@ func TestStatusQueryEmpty(t *testing.T) {
 	requireFieldError(t, q.Validate(), "id")
 }
 
-// PaymentStatusResponse validation
+// PaymentStatusResponse
 
-func TestStatusResponseValidValid(t *testing.T) {
+func TestStatusResponseParseValid(t *testing.T) {
 	r := dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusUnpaid}
-	requireNoErrors(t, r.Validate())
+	_, errs := r.Parse()
+	requireNoErrors(t, errs)
 }
 
-func TestStatusResponseValidation(t *testing.T) {
+func TestStatusResponseParseErrors(t *testing.T) {
 	tests := []struct {
 		name  string
 		resp  dogeconnectgo.PaymentStatusResponse
@@ -340,12 +421,13 @@ func TestStatusResponseValidation(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			requireFieldError(t, tc.resp.Validate(), tc.field)
+			_, errs := tc.resp.Parse()
+			requireFieldError(t, errs, tc.field)
 		})
 	}
 }
 
-func TestStatusResponseConfirmedAtValid(t *testing.T) {
+func TestStatusResponseConfirmedAtParsed(t *testing.T) {
 	r := dogeconnectgo.PaymentStatusResponse{
 		ID:          "pay-1",
 		Status:      dogeconnectgo.PaymentStatusConfirmed,
@@ -354,7 +436,12 @@ func TestStatusResponseConfirmedAtValid(t *testing.T) {
 		Confirmed:   ptr(0),
 		DueSec:      ptr(600),
 	}
-	requireNoErrors(t, r.Validate())
+	p, errs := r.Parse()
+	requireNoErrors(t, errs)
+	expected, _ := time.Parse(time.RFC3339, "2025-06-01T12:00:00Z")
+	if !p.ConfirmedAtTime.Equal(expected) {
+		t.Errorf("ConfirmedAtTime = %v, want %v", p.ConfirmedAtTime, expected)
+	}
 }
 
 func TestStatusResponseConditionalFields(t *testing.T) {
@@ -377,7 +464,8 @@ func TestStatusResponseConditionalFields(t *testing.T) {
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			requireFieldError(t, tc.resp.Validate(), tc.field)
+			_, errs := tc.resp.Parse()
+			requireFieldError(t, errs, tc.field)
 		})
 	}
 }
@@ -385,19 +473,23 @@ func TestStatusResponseConditionalFields(t *testing.T) {
 func TestStatusResponseConditionalFieldsValid(t *testing.T) {
 	// reason allowed with declined
 	r := dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusDeclined, Reason: "insufficient funds"}
-	requireNoErrors(t, r.Validate())
+	_, errs := r.Parse()
+	requireNoErrors(t, errs)
 
 	// txid allowed with accepted
 	r = dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusAccepted, TxID: "deadbeef"}
-	requireNoErrors(t, r.Validate())
+	_, errs = r.Parse()
+	requireNoErrors(t, errs)
 
 	// txid allowed with confirmed
 	r = dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusConfirmed, TxID: "deadbeef", ConfirmedAt: "2025-06-01T12:00:00Z"}
-	requireNoErrors(t, r.Validate())
+	_, errs = r.Parse()
+	requireNoErrors(t, errs)
 
 	// required/confirmed/due_sec allowed with accepted
 	r = dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusAccepted, Required: ptr(6), Confirmed: ptr(0), DueSec: ptr(600)}
-	requireNoErrors(t, r.Validate())
+	_, errs = r.Parse()
+	requireNoErrors(t, errs)
 }
 
 func TestStatusResponseAllStatuses(t *testing.T) {
@@ -410,12 +502,22 @@ func TestStatusResponseAllStatuses(t *testing.T) {
 	for _, s := range statuses {
 		t.Run(string(s), func(t *testing.T) {
 			r := dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: s}
-			requireNoErrors(t, r.Validate())
+			_, errs := r.Parse()
+			requireNoErrors(t, errs)
 		})
 	}
 }
 
-// ErrorResponse validation
+func TestStatusResponseTxIDParsed(t *testing.T) {
+	r := dogeconnectgo.PaymentStatusResponse{ID: "pay-1", Status: dogeconnectgo.PaymentStatusAccepted, TxID: "deadbeef"}
+	p, errs := r.Parse()
+	requireNoErrors(t, errs)
+	if len(p.TxIDBytes) == 0 {
+		t.Fatal("expected TxIDBytes to be populated")
+	}
+}
+
+// ErrorResponse validation (still uses Validate — no Parse needed)
 
 func validErrorResponse() dogeconnectgo.ErrorResponse {
 	return dogeconnectgo.ErrorResponse{
