@@ -1,6 +1,8 @@
+// Package dogeconnectgo implements the Doge Connect payment protocol —
+// types, signing, verification, and parsing for payment envelopes.
 package dogeconnectgo
 
-// DogeConnect protocol.
+// EnvelopeVersion is the protocol version included in every ConnectEnvelope.
 const EnvelopeVersion = "1.0"
 
 // EnvelopeType is the type of a Connect Envelope payload.

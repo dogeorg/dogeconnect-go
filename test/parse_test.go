@@ -164,6 +164,8 @@ func TestPaymentParseErrors(t *testing.T) {
 		{"empty vendor_name", func(p *dogeconnectgo.ConnectPayment) { p.VendorName = "" }, "vendor_name"},
 		{"empty total", func(p *dogeconnectgo.ConnectPayment) { p.Total = "" }, "total"},
 		{"bad total", func(p *dogeconnectgo.ConnectPayment) { p.Total = "abc" }, "total"},
+		{"zero total", func(p *dogeconnectgo.ConnectPayment) { p.Total = "0" }, "total"},
+		{"negative total", func(p *dogeconnectgo.ConnectPayment) { p.Total = "-5" }, "total"},
 		{"empty fee_per_kb", func(p *dogeconnectgo.ConnectPayment) { p.FeePerKB = "" }, "fee_per_kb"},
 		{"bad fee_per_kb", func(p *dogeconnectgo.ConnectPayment) { p.FeePerKB = "abc" }, "fee_per_kb"},
 		{"bad fees", func(p *dogeconnectgo.ConnectPayment) { p.Fees = "abc" }, "fees"},
@@ -347,6 +349,8 @@ func TestOutputParseErrors(t *testing.T) {
 		{"empty address", func(o *dogeconnectgo.ConnectOutput) { o.Address = "" }, "address"},
 		{"empty amount", func(o *dogeconnectgo.ConnectOutput) { o.Amount = "" }, "amount"},
 		{"bad amount", func(o *dogeconnectgo.ConnectOutput) { o.Amount = "abc" }, "amount"},
+		{"zero amount", func(o *dogeconnectgo.ConnectOutput) { o.Amount = "0" }, "amount"},
+		{"negative amount", func(o *dogeconnectgo.ConnectOutput) { o.Amount = "-1" }, "amount"},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -389,7 +393,7 @@ func TestSubmissionParseErrors(t *testing.T) {
 
 // StatusQuery validation (still uses Validate — no Parse needed)
 
-func TestStatusQueryValidValid(t *testing.T) {
+func TestStatusQueryValid(t *testing.T) {
 	q := dogeconnectgo.StatusQuery{ID: "pay-1"}
 	requireNoErrors(t, q.Validate())
 }
@@ -526,7 +530,7 @@ func validErrorResponse() dogeconnectgo.ErrorResponse {
 	}
 }
 
-func TestErrorResponseValidValid(t *testing.T) {
+func TestErrorResponseValid(t *testing.T) {
 	requireNoErrors(t, validErrorResponse().Validate())
 }
 

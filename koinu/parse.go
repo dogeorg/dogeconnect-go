@@ -19,52 +19,62 @@ var decimalScale = []int64{0, 10_000_000, 1_000_000, 100_000, 10_000, 1000, 100,
 func ParseKoinu(amt string) (Koinu, error) {
 	chars := []uint8(amt)
 	sign := int64(1)
-	len := len(amt)
+	n := len(amt)
 	i := 0
 
 	// optional minus sign
-	if i < len && chars[i] == '-' {
+	if i < n && chars[i] == '-' {
 		sign = -1
 		i++
 	}
 
 	// skip leading zeroes (because we limit to maxMoneyDigits)
-	for i < len && chars[i] == '0' {
+	start := i
+	for i < n && chars[i] == '0' {
 		i++
 	}
 
 	// whole number part
-	whole, i := parseUInt64(chars, i, len, maxMoneyDigits)
-	moreDigits := (i < len && chars[i]-'0' < 10)
+	whole, i := parseUInt64(chars, i, n, maxMoneyDigits)
+	moreDigits := i < n && chars[i]-'0' < 10
 	if whole > maxMoneyInteger || moreDigits {
 		// whole part is greater than MaxMoney
 		return 0, ErrMaxMoney
 	}
 
+	digits := i - start // digits consumed so far (including leading zeros)
+
 	whole = whole * OneDoge // overflow: safe due to check above (approx. 1/10 of MaxInt64)
 
 	// decimal part, up to 8 significant digits
-	if i < len && chars[i] == '.' {
-		start := i + 1
-		part, end := parseUInt64(chars, start, len, maxKoinuDigits)
+	if i < n && chars[i] == '.' {
+		decStart := i + 1
+		part, end := parseUInt64(chars, decStart, n, maxKoinuDigits)
 		i = end
+
+		digits += end - decStart
 
 		// decimal part must be 8 digits; multiply by 10 ^ (8 - length)
 		// e.g. if we found 6 digits, multiply by 100
-		length := end - start
+		length := end - decStart
 		part *= decimalScale[length]
 
 		whole += part // overflow: safe, less than OneDoge
 
-		// decmial part can push us above MaxMoney
+		// decimal part can push us above MaxMoney
 		if whole > MaxMoney {
 			return 0, ErrMaxMoney
 		}
 	}
 
-	// invalid if string contains more charcters (but skip extra decimal-part digits)
-	i = skipDigits(chars, i, len)
-	if i != len {
+	// require at least one digit
+	if digits == 0 {
+		return 0, ErrInvalidNumber
+	}
+
+	// invalid if string contains more characters (but skip extra decimal-part digits)
+	i = skipDigits(chars, i, n)
+	if i != n {
 		return 0, ErrInvalidNumber
 	}
 
@@ -72,10 +82,10 @@ func ParseKoinu(amt string) (Koinu, error) {
 }
 
 // parseUInt64 is like strconv.Atoi with int64 result and a maximum length.
-func parseUInt64(chars []uint8, i int, len int, maxlen int) (int64, int) {
-	len = min(len, i+maxlen)
+func parseUInt64(chars []uint8, i int, n int, maxlen int) (int64, int) {
+	n = min(n, i+maxlen)
 	val := int64(0)
-	for i < len {
+	for i < n {
 		// the following test relies on unsigned modulo math
 		ch := chars[i] - '0'
 		if ch < 10 {
@@ -88,8 +98,8 @@ func parseUInt64(chars []uint8, i int, len int, maxlen int) (int64, int) {
 	return val, i
 }
 
-func skipDigits(chars []uint8, i int, len int) int {
-	for i < len && chars[i]-'0' < 10 {
+func skipDigits(chars []uint8, i int, n int) int {
+	for i < n && chars[i]-'0' < 10 {
 		i++
 	}
 	return i

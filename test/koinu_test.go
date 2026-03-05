@@ -149,6 +149,16 @@ func TestParseErrors(t *testing.T) {
 	}
 }
 
+func TestParseMalformed(t *testing.T) {
+	malformed := []string{"", "-", ".", "-.", "abc", "--1", "1.2.3"}
+	for _, s := range malformed {
+		_, err := koinu.ParseKoinu(s)
+		if err == nil {
+			t.Errorf("ParseKoinu(%q) should fail, got nil error", s)
+		}
+	}
+}
+
 func testParse(t *testing.T, amt string, expect int64) {
 	t.Helper()
 	val, err := koinu.ParseKoinu(amt)

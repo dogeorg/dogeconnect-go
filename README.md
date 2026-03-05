@@ -74,7 +74,7 @@ if len(fieldErrs) > 0 {
 
 ```go
 // Generate a QR-code URI with Connect parameters.
-uri := dogeconnectgo.DogecoinURI("D...", "42.50", "relay.example.com/pay/123", pubKeyBytes)
+uri, err := dogeconnectgo.DogecoinURI("D...", "42.50", "relay.example.com/pay/123", pubKeyBytes)
 // → dogecoin:D...?amount=42.50&dc=relay.example.com%2Fpay%2F123&h=...
 
 // Parse a URI back.
@@ -86,7 +86,7 @@ if parsed.IsConnectURI() {
 
 ## Parsed Types
 
-Each protocol type with complex fields has a `Parse()` method returning `(Parsed*, []FieldError)`:
+Each protocol type with complex fields has a `Parse()` method returning `(Parsed*, FieldErrors)`:
 
 | Raw Type | Parsed Type | Parsed Fields |
 |---|---|---|

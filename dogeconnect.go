@@ -48,40 +48,30 @@ func SignPaymentRequest(payment ConnectPayment, privKey []byte) (ConnectEnvelope
 // VerifyPaymentRequest decodes and verifies a signed ConnectPayment in a ConnectEnvelope.
 // pubKeyHash is the `h` (hash) element from a valid DogeConnect URL.
 func VerifyPaymentRequest(env ConnectEnvelope, pubKeyHash []byte) (ConnectPayment, error) {
-	if env.Version != EnvelopeVersion {
-		return ConnectPayment{}, fmt.Errorf("invalid envelope: wrong version")
-	}
-	pub, err := hex.DecodeString(env.PubKey)
-	if err != nil {
-		return ConnectPayment{}, fmt.Errorf("invalid envelope: malformed pubkey hex")
-	}
-	sigB, err := hex.DecodeString(env.Signature)
-	if err != nil {
-		return ConnectPayment{}, fmt.Errorf("invalid envelope: malformed signature hex")
-	}
-	payload, err := base64.StdEncoding.DecodeString(env.Payload)
-	if err != nil {
-		return ConnectPayment{}, fmt.Errorf("invalid envelope: malformed base64 payload")
+	// Parse and validate the envelope structure.
+	parsed, errs := env.Parse()
+	if err := errs.Err(); err != nil {
+		return ConnectPayment{}, fmt.Errorf("invalid envelope: %w", err)
 	}
 
-	// SHA256 the public key.
-	pubSha := sha256.Sum256(pub)
+	// SHA256 the public key and compare to the hash from the QR code.
+	pubSha := sha256.Sum256(parsed.PubKeyBytes)
 	if !bytes.Equal(pubKeyHash, pubSha[0:15]) {
 		return ConnectPayment{}, fmt.Errorf("invalid envelope: wrong public key")
 	}
 
 	// Double-SHA256 the encoded JSON payload bytes.
-	hash1 := sha256.Sum256(payload)
+	hash1 := sha256.Sum256(parsed.PayloadBytes)
 	hash := sha256.Sum256(hash1[:])
 
 	// BIP-340 X-only pubkey (lift_x function)
-	pubkey, err := schnorr.ParsePubKey(pub)
+	pubkey, err := schnorr.ParsePubKey(parsed.PubKeyBytes)
 	if err != nil {
 		return ConnectPayment{}, fmt.Errorf("invalid envelope: not a valid pubkey")
 	}
 
 	// Verify the BIP-340 Schnorr signature.
-	sig, err := schnorr.ParseSignature(sigB)
+	sig, err := schnorr.ParseSignature(parsed.SignatureBytes)
 	if err != nil {
 		return ConnectPayment{}, fmt.Errorf("invalid envelope: not a valid signature")
 	}
@@ -90,11 +80,11 @@ func VerifyPaymentRequest(env ConnectEnvelope, pubKeyHash []byte) (ConnectPaymen
 	}
 
 	var payment ConnectPayment
-	if err := json.Unmarshal(payload, &payment); err != nil {
-		return ConnectPayment{}, fmt.Errorf("invalid envelope: malformed payload JSON: %v", err)
+	if err := json.Unmarshal(parsed.PayloadBytes, &payment); err != nil {
+		return ConnectPayment{}, fmt.Errorf("invalid envelope: malformed payload JSON: %w", err)
 	}
 	if payment.Type != EnvelopeTypePayment {
-		return ConnectPayment{}, fmt.Errorf("bad envelope: not a payment request")
+		return ConnectPayment{}, fmt.Errorf("invalid envelope: not a payment request")
 	}
 	return payment, nil
 }

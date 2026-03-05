@@ -29,6 +29,18 @@ func (fe *FieldErrors) Add(e *FieldError) {
 	}
 }
 
+// Err returns nil if there are no errors, or a combined error.
+func (fe FieldErrors) Err() error {
+	if len(fe) == 0 {
+		return nil
+	}
+	msg := fe[0].String()
+	for _, e := range fe[1:] {
+		msg += "; " + e.String()
+	}
+	return fmt.Errorf("validation failed: %s", msg)
+}
+
 func fieldErr(field, message string) *FieldError {
 	return &FieldError{field, message}
 }
@@ -84,7 +96,7 @@ func parseRequiredKoinu(field, value string) (koinu.Koinu, *FieldError) {
 	}
 	k, err := koinu.ParseKoinu(value)
 	if err != nil {
-		return 0, fieldErr(field, "invalid koinu value")
+		return 0, fieldErr(field, fmt.Sprintf("invalid koinu value: %s", err))
 	}
 	return k, nil
 }
@@ -95,7 +107,7 @@ func parseOptionalKoinu(field, value string) (koinu.Koinu, *FieldError) {
 	}
 	k, err := koinu.ParseKoinu(value)
 	if err != nil {
-		return 0, fieldErr(field, "invalid koinu value")
+		return 0, fieldErr(field, fmt.Sprintf("invalid koinu value: %s", err))
 	}
 	return k, nil
 }
@@ -218,6 +230,9 @@ func (pay ConnectPayment) Parse() (ParsedPayment, FieldErrors) {
 	errs.Add(fe)
 	p.TotalKoinu, fe = parseRequiredKoinu("total", pay.Total)
 	errs.Add(fe)
+	if fe == nil && p.TotalKoinu <= 0 {
+		errs.Add(fieldErr("total", "must be positive"))
+	}
 	p.FeePerKBKoinu, fe = parseRequiredKoinu("fee_per_kb", pay.FeePerKB)
 	errs.Add(fe)
 	p.FeesKoinu, fe = parseOptionalKoinu("fees", pay.Fees)
@@ -314,6 +329,9 @@ func (o ConnectOutput) Parse() (ParsedOutput, FieldErrors) {
 	var fe *FieldError
 	p.AmountKoinu, fe = parseRequiredKoinu("amount", o.Amount)
 	errs.Add(fe)
+	if fe == nil && p.AmountKoinu <= 0 {
+		errs.Add(fieldErr("amount", "must be positive"))
+	}
 	return p, errs
 }
 
