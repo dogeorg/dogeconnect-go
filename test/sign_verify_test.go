@@ -115,6 +115,71 @@ func TestMinimalPaymentRoundTrip(t *testing.T) {
 	}
 }
 
+func TestMetaRoundTrip(t *testing.T) {
+	privKey, pubKeyCheck := newTestKey(t)
+
+	payment := dogeconnectgo.ConnectPayment{
+		Type:       dogeconnectgo.EnvelopeTypePayment,
+		ID:         "meta-1",
+		Issued:     "2025-06-01T00:00:00Z",
+		Timeout:    60,
+		Relay:      "https://example.com/dc/meta",
+		FeePerKB:   "0.01",
+		MaxSize:    10000,
+		VendorName: "Test",
+		Total:      "10",
+		Outputs: []dogeconnectgo.ConnectOutput{
+			{Address: "DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY", Amount: "10"},
+		},
+		Meta: map[string]string{
+			"such.invoice_id":   "8a1b9f2c-0000-4000-8000-000000000001",
+			"such.invoice_type": "full",
+		},
+	}
+
+	env, err := dogeconnectgo.SignPaymentRequest(payment, privKey)
+	if err != nil {
+		t.Fatalf("failed to sign payment with meta: %v", err)
+	}
+
+	pay, err := dogeconnectgo.VerifyPaymentRequest(env, pubKeyCheck)
+	if err != nil {
+		t.Fatalf("failed to verify payment with meta: %v", err)
+	}
+
+	if !reflect.DeepEqual(pay.Meta, payment.Meta) {
+		t.Fatalf("meta round-trip mismatch:\ngot:  %+v\nwant: %+v", pay.Meta, payment.Meta)
+	}
+}
+
+func TestMetaOmittedWhenEmpty(t *testing.T) {
+	payment := dogeconnectgo.ConnectPayment{
+		Type:       dogeconnectgo.EnvelopeTypePayment,
+		ID:         "meta-empty",
+		Issued:     "2025-06-01T00:00:00Z",
+		Relay:      "https://example.com/dc/meta",
+		VendorName: "Test",
+		Total:      "5",
+		Outputs: []dogeconnectgo.ConnectOutput{
+			{Address: "DPD7uK4B1kRmbfGmytBhG1DZjaMWNfbpwY", Amount: "5"},
+		},
+	}
+
+	data, err := json.Marshal(payment)
+	if err != nil {
+		t.Fatalf("failed to marshal: %v", err)
+	}
+
+	var m map[string]any
+	if err := json.Unmarshal(data, &m); err != nil {
+		t.Fatalf("failed to unmarshal to map: %v", err)
+	}
+
+	if _, ok := m["meta"]; ok {
+		t.Errorf("meta should be omitted from JSON when unset, but key is present")
+	}
+}
+
 func TestMalformedPayloadReturnsError(t *testing.T) {
 	priv, err := btcec.NewPrivateKey()
 	if err != nil {

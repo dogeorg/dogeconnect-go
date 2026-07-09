@@ -70,6 +70,12 @@ type ConnectPayment struct {
 	FiatCurrency   string          `json:"fiat_currency"`    // ISO 4217 currency code (required with fiat_total/fiat_tax) (conditional)
 	Items          []ConnectItem   `json:"items"`            // List of line items to display
 	Outputs        []ConnectOutput `json:"outputs"`          // List of outputs to pay
+
+	// Meta is an opaque bag of vendor-specific hints, signed with the rest of the
+	// payload but NOT validated or interpreted by this library. Keys MUST be
+	// namespaced (reverse-dotted, e.g. "namepace.internal_ref"); wallets MUST ignore keys
+	// they don't recognise. Use it for presentation hints, not protocol semantics. (optional)
+	Meta map[string]string `json:"meta,omitempty"`
 }
 
 // ConnectItem is a line item within a Connect Payment.
